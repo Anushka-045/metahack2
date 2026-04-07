@@ -1,24 +1,46 @@
 FROM python:3.11-slim
 
+# Metadata
+LABEL maintainer="Anushka"
+LABEL description="Compliance Monitor — Data Pipeline"
+LABEL version="1.0.0"
+
 WORKDIR /app
 
-# Install system deps
+# System deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl build-essential && rm -rf /var/lib/apt/lists/*
+    curl \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install Python deps
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements_anushka.txt ./requirements.txt
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -r requirements.txt
 
-# Copy source
+# Copy source code
 COPY . .
 
-# Expose HF Spaces default port
+# Create writable dirs
+RUN mkdir -p /app/data /app/tmp \
+    && chmod 777 /app/data /app/tmp
+
+# Non-root user
+RUN useradd -m -u 1000 appuser \
+    && chown -R appuser:appuser /app
+USER appuser
+
+# Environment
+ENV PYTHONUNBUFFERED=1
+ENV DB_PATH=/app/data/compliance_db.sqlite
+ENV PORT=7860
+
+# Expose port
 EXPOSE 7860
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
     CMD curl -f http://localhost:7860/health || exit 1
 
-# Run server
-CMD ["python", "server.py"]
+# Run app
+CMD ["python", "app.py"]
